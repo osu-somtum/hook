@@ -36,12 +36,10 @@ public class BeatmapSubmissionLinksPatch : TitanicPatch
     {
         foreach (CodeInstruction instruction in ObfHelper.DecAllStrings(instructions))
         {
-            if (instruction.opcode == OpCodes.Ldstr && instruction.operand is string str && (str.Contains("ppy.sh") || str.Contains("peppy.chigau.com")))
+            if (instruction.opcode == OpCodes.Ldstr && instruction.operand is string str && ServerHosts.Contains(str))
             {
                 Logging.HookStep(HookName, $"Patching string {str}");
-                string newstr = str.Replace("ppy.sh", EntryPoint.Config.ServerName);
-                newstr = newstr.Replace("peppy.chigau.com", $"chigau.{EntryPoint.Config.ServerName}");
-                instruction.operand = newstr;
+                instruction.operand = ServerHosts.Move(str);
             }
             
             yield return instruction;

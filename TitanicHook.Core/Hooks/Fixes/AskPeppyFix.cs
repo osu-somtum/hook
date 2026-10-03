@@ -31,7 +31,7 @@ public class AskPeppyFix : TitanicPatch
             .FirstOrDefault(
                 m => m.ReturnType.FullName == "System.Void" &&
                      m.GetParameters().Length == 1 &&
-                     SigScanning.GetStrings(m).Any(s => s.Contains("osu.ppy.sh/p/doyoureallywanttoaskpeppy")));
+                     SigScanning.GetStrings(m).Any(s => s.Contains("/p/doyoureallywanttoaskpeppy")));
 
         if (method == null)
         {
@@ -51,7 +51,7 @@ public class AskPeppyFix : TitanicPatch
         {
             CodeInstruction instruction = final[i];
             if (instruction.opcode == OpCodes.Ldstr && instruction.operand is string s &&
-                s.Contains("osu.ppy.sh/p/doyoureallywanttoaskpeppy"))
+                s.Contains("/p/doyoureallywanttoaskpeppy"))
             {
                 instruction.opcode = OpCodes.Nop; // ldstr
                 final[i + 1].opcode = OpCodes.Nop; // ldnull

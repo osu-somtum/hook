@@ -32,10 +32,7 @@ public class DnsHostByNameHook : TitanicPatch
     private static void InternalGetHostByNamePrefix(ref string __0)
     {
         Logging.HookTrigger(HookName);
-        if (__0.Contains("ppy.sh"))
-            __0 = __0.Replace("ppy.sh", EntryPoint.Config.ServerName);
-        else if (__0 == "peppy.chigau.com")
-            __0 = __0.Replace("peppy.chigau.com", $"chigau.{EntryPoint.Config.ServerName}");
+        __0 = ServerHosts.MoveHost(__0);
     }
     
     #endregion

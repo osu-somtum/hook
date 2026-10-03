@@ -44,10 +44,8 @@ public class StartProcessHook : TitanicPatch
         // Do not replace the link for copyright button
         if (CopyrightRegex.IsMatch(__0.FileName)) return;
         
-        if (__0.FileName.Contains("ppy.sh")) // TODO: Make regex check for URLs
-        {
-            __0.FileName = __0.FileName.Replace("ppy.sh", EntryPoint.Config.ServerName);
-        }
+        if (ServerHosts.Contains(__0.FileName))
+            __0.FileName = ServerHosts.Move(__0.FileName);
     }
 
     #endregion

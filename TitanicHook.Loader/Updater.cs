@@ -14,6 +14,10 @@ public static class Updater
     
     public static void CheckForUpdates()
     {
+        // osu!somtum: no update server (releases are on osu-somtum/hook).
+        if (string.IsNullOrEmpty(Constants.UpdateServer))
+            return;
+
         string variant = "";
 #if NET20
         variant = "net20";
@@ -40,7 +44,7 @@ public static class Updater
         bool updateFound = data.Length > 0;
         if (updateFound)
         {
-            var result = MessageBox.Show("A new version of Titanic! is available! Update now?", "Titanic! Updater", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+            var result = MessageBox.Show("A new version of the osu!somtum hook is available! Update now?", "osu!somtum hook updater", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
             if (result == DialogResult.No) return;
         }
         else

@@ -90,6 +90,14 @@ public static class EntryPoint
         if (Config.HookNetLibEncoding) PatchManager.Apply(new NetLibEncodingHook());
         
         if (Config.RemovePeppyDmCheck) PatchManager.Apply(new AskPeppyFix());
+
+        // osu!somtum
+        if (Config.FixBeatmaps) PatchManager.Apply(new BeatmapCompatPatch());
+        if (Config.DisableUpdater)
+        {
+            var updater = new DisableUpdaterPatch();
+            if (updater.TargetMethods.Count > 0) PatchManager.Apply(updater); // 2014-15 builds only
+        }
         
 #if NET40
         PatchManager.Apply(new HostHeaderHook());
@@ -108,7 +116,7 @@ public static class EntryPoint
         Logging.Info("All hooked");
         Config.FirstRun = false;
         Config.SaveConfiguration(Config.Filename);
-        string notifMessage = $"Welcome to Titanic! (v{Constants.PatchVersion})";
+        string notifMessage = $"Welcome to osu!somtum! (hook v{Constants.PatchVersion})";
         if (autoUpdated)
             notifMessage += "\nUpdated successfully!";
         Notifications.ShowMessage(notifMessage);

@@ -5,8 +5,9 @@ namespace TitanicHook.Core;
 
 public static class Constants
 {
-    public const string DefaultConfigName = "Titanic!.cfg";
-    public const string LogFileName = "Titanic!.log";
-    public const string UpdateServer = "http://hook.titanic.sh";
+    public const string DefaultConfigName = "osu!somtum.cfg";
+    public const string LogFileName = "osu!somtum.log";
+    // No self-update: releases are on osu-somtum/hook. (Titanic's is http://hook.titanic.sh.)
+    public const string UpdateServer = "";
     public const string PatchVersion = "1.2.0";
 }

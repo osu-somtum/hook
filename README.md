@@ -1,44 +1,67 @@
-﻿# Titanic! Hook
+# osu!somtum hook
 
-A small executable that allows to connect old osu! clients without `-devserver` support to private servers, without any permanent modifications to the client.
+A small executable that connects old osu! clients (2008 to 2015) to an osu!somtum server
+(**blueskychan.dev** by default), without any permanent changes to the client. It's
+Titanic! Hook by Oreeeee (osu!Titanic) with osu!somtum's changes,
+under the same license (GPLv3 or later).
+
+## What it does
+
+- **Connects to the server.** Every host the client talks to goes to the same subdomain of the
+  configured server: osu!'s own (`*.ppy.sh`, `peppy.chigau.com`), and those of the private
+  servers old builds are handed out patched for (`*.titanic.sh`, `osu.lekuru.xyz`), so Titanic's
+  client downloads work too. HTTP bancho's fallback addresses (raw IPs, TCP bancho's port 13381)
+  go to `c.<server>`. TCP bancho (builds up to b20130815) connects to `server.<server>`.
+- **Plays today's beatmaps.** The client's beatmap loaders read each `.osu`/`.osb` line through
+  `Compat/BeatmapCompat.cs`, which rewrites only what that build can't read:
+  - decimal HP/CS/OD/AR, rounded (builds before b20140616);
+  - perfect-circle sliders as Bezier arcs (before b20121115);
+  - osu!mania difficulties as an empty map named "… (mania)" (before b20121003);
+  - storyboards: decimal positions rounded, the Overlay layer drawn as Foreground;
+  - newer hit object type bits and timing point effects left out.
+- **No updater.** The 2014-15 updater's check answers "no update": the server's list would replace
+  the build with today's osu!, and failing checks make the game repair itself.
+- **No self-update.** Releases are on osu-somtum/hook.
+
+Each of these is found in the client by what its code does (strings, called methods), not by build,
+so one hook works for every build.
 
 ## Supported clients
 
-Titanic! Hook supports any osu! (stable) client released since 2008.
+Any osu! (stable) client released between 2008 and 2015.
 
 > [!CAUTION]
-> Titanic! Hook is NOT compatible with the new osu!auth anti-cheat used since 2021. The game will automatically close if you try to use it in such clients.
-
-## How does it work?
-
-Titanic! Hook uses Harmony to alter the behavior of the client in order to redirect traffic to another server and patch some issues. It uses Reflection and IL reading to find target methods, so it's version-agnostic.
+> It isn't compatible with the osu!auth anti-cheat used since 2021: the game closes if you try.
 
 ## Usage
 
-Throw in the release executable for the correct .NET Framework version to the osu! directory. A configuration file will be automatically created.
-The .NET Framework 4 loader executable should be compatible with osu! versions that use .NET Framework 2.0, however if you encounter any issues - try to use the .NET Framework 2.0 build and report an issue!
+Put the release executable for the client's .NET Framework version in the osu! folder and run it.
+A configuration file (`osu!somtum.cfg`) is created on the first run.
 
 > [!TIP]
-> osu! versions before 2015 ran on .NET Framework 2.0. Cuttingedge since April 2015 and Stable since November 2015 use .NET Framework 4. 
+> osu! versions before 2015 ran on .NET Framework 2.0. Cuttingedge since April 2015 and Stable since
+> November 2015 use .NET Framework 4.
 
 ### Configuration
 
-The configuration file is pretty self-explanatory, and you most likely don't need to touch it. It will automatically use titanic.sh as the server, however you can use any server that supports the client that you are using.
+`ServerName` is the server's domain (`blueskychan.dev`). `FixBeatmaps` and `DisableUpdater` turn
+the beatmap and updater patches off. The rest you most likely don't need to touch.
 
 > [!TIP]
-> The IP address for Bancho in clients that use TCP (b20130815 and older) is resolved using the first DNS A record for the `server` subdomain, for example `server.titanic.sh`.
+> The IP address for bancho in clients that use TCP (b20130815 and older) is the first DNS A record
+> of the `server` subdomain, e.g. `server.blueskychan.dev`.
 
 ## Building a self-contained release from source
 
 - Clone the repository including submodules
 - Build `TitanicHook.Loader` in the Release configuration
-- In the build output directory you will get a `Titanic!_merged.exe` that contains all dependencies built-in
+- The build output has an `osu!somtum_merged.exe` with every dependency built in
 
 ## Developing
 
-- (Optional) Attach your IDE's debugger to osu!.exe. This will allow you to set breakpoints while debugging Titanic! Hook
-- Run TestInjector, which will inject Titanic! Hook into osu!
+- (Optional) Attach your IDE's debugger to osu!.exe. This will allow you to set breakpoints while debugging the hook
+- Run TestInjector, which will inject the hook into osu!
 
 ## License
 
-This project is licensed under the GNU GPLv3 or later license. It would be greatly appreciated to change the Titanic! branding before redistribution.
+GNU GPLv3 or later (see `LICENSE.txt`). Based on Titanic! Hook by Oreeeee.

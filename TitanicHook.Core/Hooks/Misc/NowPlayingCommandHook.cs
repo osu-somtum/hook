@@ -31,7 +31,7 @@ public class NowPlayingCommandHook : TitanicPatch
         Logging.HookOutput(HookName, $"Message: {__0}");
         string[] prefixes = ["/me is listening", "/me is watching", "/me is playing"];
         if (prefixes.Any(__0.StartsWith))
-            __0 = Regex.Replace(__0, @"(?<=https?:\/\/osu\.)ppy\.sh", EntryPoint.Config.ServerName);
+            __0 = Regex.Replace(__0, @"(?<=https?:\/\/osu\.)(?:ppy\.sh|titanic\.sh|lekuru\.xyz)", EntryPoint.Config.ServerName);
     }
 
     #endregion

@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <AssemblyName>Titanic!</AssemblyName>
+        <AssemblyName>osu!somtum</AssemblyName>
         <OutputType>WinExe</OutputType>
         <TargetFrameworks>net20;net40</TargetFrameworks>
         <ImplicitUsings>disable</ImplicitUsings>
@@ -8,15 +8,15 @@
         <LangVersion>13</LangVersion>
         <ApplicationIcon>titanic.ico</ApplicationIcon>
         <Version>1.2.0</Version>
-        <Company>Titanic!</Company>
+        <Company>osu!somtum</Company>
     </PropertyGroup>
     
     <PropertyGroup Condition="'$(TargetFramework)' == 'net20'">
-        <AssemblyTitle>Titanic! Loader (fallback)</AssemblyTitle>
+        <AssemblyTitle>osu!somtum Loader (fallback)</AssemblyTitle>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(TargetFramework)' == 'net40'">
-        <AssemblyTitle>Titanic! Loader</AssemblyTitle>
+        <AssemblyTitle>osu!somtum Loader</AssemblyTitle>
     </PropertyGroup>
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">

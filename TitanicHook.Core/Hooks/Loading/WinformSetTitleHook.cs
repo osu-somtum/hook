@@ -24,7 +24,7 @@ public class WinformSetTitleHook : TitanicPatch
     {
         Logging.HookTrigger(HookName);
         if (value.StartsWith("osu!"))
-            value = $"(Titanic) {value}";
+            value = $"(osu!somtum) {value}";
     }
 
     #endregion

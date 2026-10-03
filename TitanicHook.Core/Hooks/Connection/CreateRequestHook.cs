@@ -39,11 +39,11 @@ public class CreateRequestHook : TitanicPatch
     private static void CreateRequestPrefix(ref string __0)
     {
         Logging.HookTrigger(HookName);
-        if (__0.Contains("ppy.sh"))
+        string moved = ServerHosts.MoveUrl(__0);
+        if (moved != __0)
         {
-            Logging.HookOutput(HookName, $"Replacing ppy.sh domain with {EntryPoint.Config.ServerName} in WebRequest.Create(string)");
-            var regex = new Regex(Regex.Escape("ppy.sh"));
-            __0 = regex.Replace(__0, EntryPoint.Config.ServerName, 1); // only the first occurence
+            Logging.HookOutput(HookName, $"Moving {__0} to {moved} in WebRequest.Create(string)");
+            __0 = moved;
         }
     }
     

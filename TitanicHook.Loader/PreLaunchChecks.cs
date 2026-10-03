@@ -30,7 +30,7 @@ public static class PreLaunchChecks
 #elif NET40
             netFrameworkRequired += "4.0";
 #endif
-        string isAllowedString = Program.Config.AllowMono ? "Titanic!Loader will proceed, but might not work as expected" : "Titanic!Loader will now close. Enable AllowMono in configuration file to allow (KEEP IN MIND THAT THIS IS UNSUPPORTED AND WILL CAUSE ISSUES)";
+        string isAllowedString = Program.Config.AllowMono ? "The osu!somtum loader will proceed, but might not work as expected" : "The osu!somtum loader will now close. Enable AllowMono in configuration file to allow (KEEP IN MIND THAT THIS IS UNSUPPORTED AND WILL CAUSE ISSUES)";
         Logging.LogAndShowError($"Running on Mono is NOT SUPPORTED and WILL CAUSE ISSUES!\n" +
                                 $"Please install {netFrameworkRequired} in your Wineprefix to continue.\n" +
                                 isAllowedString);
@@ -56,7 +56,7 @@ public static class PreLaunchChecks
                 if (installedSp < 2)
                 {
                     MessageBox.Show(
-                        "You don't have .NET Framework 2.0 Service Pack 2 installed.\nIt's required to run Titanic! Hook.\nDownload page for .NET Framework 2.0 SP2 will open.",
+                        "You don't have .NET Framework 2.0 Service Pack 2 installed.\nIt's required to run the osu!somtum hook.\nDownload page for .NET Framework 2.0 SP2 will open.",
                         "Missing update!", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     
                     // Link is for 32-bit but probably people running a system without net20 SP2 are running a 32-bit OS anyways

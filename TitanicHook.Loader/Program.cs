@@ -143,8 +143,8 @@ class Program
     private static void ShowFrameworkMismatch(string osuVer, string hookVer)
     {
         Logging.LogAndShowError($".NET Framework runtime version mismatch!\n" +
-                                $"This version of osu! requires .NET Framework {GetShortFrameworkVer(osuVer)}, this executable of Titanic!Loader is .NET Framework {hookVer}\n" +
-                                $"Get the correct version of Titanic!Loader for this version of osu!.");
+                                $"This version of osu! requires .NET Framework {GetShortFrameworkVer(osuVer)}, this executable of the osu!somtum loader is .NET Framework {hookVer}\n" +
+                                $"Get the correct version of the osu!somtum loader for this version of osu!.");
     }
 
     /// <summary>

@@ -34,10 +34,8 @@ public class AddHeaderFieldHook : TitanicPatch
     {
         Logging.HookTrigger(HookName);
         
-        if (__1 == "Host" && __2.Contains("ppy.sh"))
-            __2 = __2.Replace("ppy.sh", EntryPoint.Config.ServerName);
-        else if (__1 == "Host" && __2 == "peppy.chigau.com")
-            __2 = __2.Replace("peppy.chigau.com", $"chigau.{EntryPoint.Config.ServerName}");
+        if (__1 == "Host")
+            __2 = ServerHosts.MoveHostHeader(__2);
     }
     
     #endregion

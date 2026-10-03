@@ -29,10 +29,11 @@ public class HostHeaderHook : TitanicPatch
     private static void SetHostPrefix(ref string __0)
     {
         Logging.HookTrigger(HookName);
-        if (__0.Contains("ppy.sh"))
+        string moved = ServerHosts.MoveHostHeader(__0);
+        if (moved != __0)
         {
-            Logging.HookOutput(HookName, $"Replacing ppy.sh domain with {EntryPoint.Config.ServerName} in set_Host");
-            __0 = __0.Replace("ppy.sh", EntryPoint.Config.ServerName);
+            Logging.HookOutput(HookName, $"Moving {__0} to {moved} in set_Host");
+            __0 = moved;
         }
     }
     
