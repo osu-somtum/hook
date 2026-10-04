@@ -56,7 +56,7 @@ public class BeatmapCompatPatch : TitanicPatch
     }
 
     /// <summary>Methods that read lines and know beatmap files ("osu file format", or the FileSection enum).</summary>
-    private static List<MethodInfo> FindLoaders()
+    internal static List<MethodInfo> FindLoaders()
     {
         var loaders = new List<MethodInfo>();
         foreach (Type type in AssemblyUtils.OsuTypes)

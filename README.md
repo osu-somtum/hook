@@ -19,12 +19,23 @@ under the same license (GPLv3 or later).
   - osu!mania difficulties as an empty map named "… (mania)" (before b20121003);
   - storyboards: decimal positions rounded, the Overlay layer drawn as Foreground;
   - newer hit object type bits and timing point effects left out.
+
+  Two more for today's maps: builds before BeatmapSetID existed (b452 to b20120916) read it, so
+  osu!direct shows maps from elsewhere as downloaded; and song select (b699 to b1218) changes the
+  song when the next map is in another folder, as today's maps all call their audio `audio.mp3`.
+- **Screen mode (b476 to 2015).** Going back to windowed puts back the desktop's own screen mode,
+  not the size the build saw at startup (with today's display scaling, not a mode the screen has),
+  and a refused mode doesn't show "Unable to process your request" boxes.
+- **Relax and Autopilot**, as [osu-somtum-patcher](https://github.com/osu-somtum/osu-somtum-patcher)
+  does for today's osu!: misses show their X (from b639), a broken combo plays its sound, and the
+  results screen keeps the play as a local score like any other (from b699).
 - **No updater.** The 2014-15 updater's check answers "no update": the server's list would replace
   the build with today's osu!, and failing checks make the game repair itself.
 - **No self-update.** Releases are on osu-somtum/hook.
 
-Each of these is found in the client by what its code does (strings, called methods), not by build,
-so one hook works for every build.
+Each of these is found in the client by what its code does (strings, called methods, the shape of
+its IL), not by build, so one hook works for every build. They're the same changes the somtum
+patcher makes to the decompiled clients (osu-somtum/decompiled-osu-client, steps 6 to 9).
 
 ## Supported clients
 
@@ -44,8 +55,9 @@ A configuration file (`osu!somtum.cfg`) is created on the first run.
 
 ### Configuration
 
-`ServerName` is the server's domain (`blueskychan.dev`). `FixBeatmaps` and `DisableUpdater` turn
-the beatmap and updater patches off. The rest you most likely don't need to touch.
+`ServerName` is the server's domain (`blueskychan.dev`). `FixBeatmaps`, `DisableUpdater`,
+`FixScreenMode` and `RelaxFixes` turn the beatmap, updater, screen mode and Relax/Autopilot patches
+off. The rest you most likely don't need to touch.
 
 > [!TIP]
 > The IP address for bancho in clients that use TCP (b20130815 and older) is the first DNS A record

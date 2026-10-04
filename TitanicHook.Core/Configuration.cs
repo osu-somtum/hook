@@ -72,6 +72,12 @@ public class Configuration
 
     /// <summary>osu!somtum: the 2014-15 updater's check answers "no update" (DisableUpdaterPatch).</summary>
     public bool DisableUpdater { get; set; } = true;
+
+    /// <summary>osu!somtum: windowed mode puts back the desktop's own screen mode, a refused mode shows no message boxes (ScreenModePatch).</summary>
+    public bool FixScreenMode { get; set; } = true;
+
+    /// <summary>osu!somtum: Relax/Autopilot show misses, sound combo breaks and keep local scores (RelaxJudgementPatch, RelaxLocalScorePatch).</summary>
+    public bool RelaxFixes { get; set; } = true;
     
     /// <summary>
     /// Whether it's the first config creation.
@@ -171,6 +177,12 @@ public class Configuration
                 case "DisableUpdater":
                     DisableUpdater = bool.Parse(splitLine[1]);
                     break;
+                case "FixScreenMode":
+                    FixScreenMode = bool.Parse(splitLine[1]);
+                    break;
+                case "RelaxFixes":
+                    RelaxFixes = bool.Parse(splitLine[1]);
+                    break;
             }
         }
     }
@@ -202,6 +214,8 @@ public class Configuration
         sw.WriteLine($"RemovePeppyDmCheck={RemovePeppyDmCheck}");
         sw.WriteLine($"FixBeatmaps={FixBeatmaps}");
         sw.WriteLine($"DisableUpdater={DisableUpdater}");
+        sw.WriteLine($"FixScreenMode={FixScreenMode}");
+        sw.WriteLine($"RelaxFixes={RelaxFixes}");
     }
 
     /// <summary>

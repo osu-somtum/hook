@@ -92,7 +92,19 @@ public static class EntryPoint
         if (Config.RemovePeppyDmCheck) PatchManager.Apply(new AskPeppyFix());
 
         // osu!somtum
-        if (Config.FixBeatmaps) PatchManager.Apply(new BeatmapCompatPatch());
+        if (Config.FixBeatmaps)
+        {
+            PatchManager.Apply(new BeatmapCompatPatch());
+            ApplyIfFound(new SetIdsPatch()); // b452 to b20120916
+            ApplyIfFound(new SongSwitchPatch()); // b699 to b1218
+        }
+        if (Config.FixScreenMode) ApplyIfFound(new ScreenModePatch()); // b476 to 2015
+        if (Config.RelaxFixes)
+        {
+            ApplyIfFound(new RelaxJudgementPatch());
+            ApplyIfFound(new RelaxLocalScorePatch()); // b699 on
+        }
+        ShapeCode.Forget();
         if (Config.DisableUpdater)
         {
             var updater = new DisableUpdaterPatch();
@@ -120,6 +132,13 @@ public static class EntryPoint
         if (autoUpdated)
             notifMessage += "\nUpdated successfully!";
         Notifications.ShowMessage(notifMessage);
+    }
+
+    /// <summary>osu!somtum: patches that only some builds need are applied where their code was found.</summary>
+    private static void ApplyIfFound(TitanicPatch patch)
+    {
+        if (patch.TargetMethods.Count > 0)
+            PatchManager.Apply(patch);
     }
 
     public static Configuration Config = new ();
