@@ -30,7 +30,8 @@ under the same license (GPLv3 or later).
   does for today's osu!: misses show their X (from b639), a broken combo plays its sound, and the
   results screen keeps the play as a local score like any other (from b699). b452 to b1844 submit
   Relax/Autopilot plays (their ranked mods check refused them; later builds do already), for the
-  server's Relax and Autopilot leaderboards.
+  server's Relax and Autopilot leaderboards. Builds before b20130329 send the mods chosen with the
+  leaderboard request (`&mods=`), so song select shows the Relax or Autopilot board.
 - **No updater.** The 2014-15 updater's check answers "no update": the server's list would replace
   the build with today's osu!, and failing checks make the game repair itself.
 - **No self-update.** Releases are on osu-somtum/hook.

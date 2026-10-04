@@ -235,6 +235,56 @@ namespace TitanicHook.Core.Compat
             return calls;
         }
 
+        /// <summary>
+        /// The leaderboard request of builds that don't send their mods (b337 to b20130319): the URL
+        /// "…/web/osu-getscores…php?…" (or osu-osz2-getscores.php) then "new Request(url)". The newobj's index, or -1.
+        /// </summary>
+        public static int LeaderboardRequest(IList<Il> code)
+        {
+            int url = -1;
+            for (int k = 0; k < code.Count; k++)
+            {
+                if (code[k].Str is not { } text)
+                    continue;
+                if (text.IndexOf("mods=", System.StringComparison.Ordinal) >= 0)
+                    return -1; // sends them already
+                if (url < 0 && IsLeaderboardUrl(text))
+                    url = k;
+            }
+            if (url < 0)
+                return -1;
+            for (int k = url + 1; k < code.Count; k++)
+            {
+                if (code[k].Op == OpCodes.Newobj && code[k].Params == 1)
+                    return k;
+            }
+            return -1;
+        }
+
+        /// <summary>osu-getscores2.php to 6 (2008 to 2012) and osu-osz2-getscores.php.</summary>
+        public static bool IsLeaderboardUrl(string text) =>
+            text.IndexOf("/web/osu-", System.StringComparison.Ordinal) >= 0 && text.IndexOf("getscores", System.StringComparison.Ordinal) >= 0;
+
+        /// <summary>
+        /// The mods chosen now: "has(mod) => has(ModStatus, mod)", [ldsfld mods][load mod][call bool][ret];
+        /// b20130303 and b20130319 keep them wrapped (Obfuscated&lt;Mods&gt;), read through a conversion:
+        /// [ldsfld wrapped][call unwrap (op_Implicit, or a renamed static)][load mod][call bool][ret]. The ldsfld's index, or -1.
+        /// </summary>
+        public static int CurrentModsRead(IList<Il> code)
+        {
+            if (code.Count < 4 || code[0].Op != OpCodes.Ldsfld)
+                return -1;
+            int next = 1;
+            if (code.Count == 5 && IsCall(code[1]) && code[1].Static && code[1].Params == 1)
+                next = 2;
+            else if (code.Count != 4 || code[0].Type is not { } type || !type.EndsWith("Mods"))
+                return -1;
+            if (!IsLoad(code[next]) || !IsCall(code[next + 1]) || code[next + 1].Params != 2 || code[next + 1].Type != "System.Boolean" ||
+                code[next + 2].Op != OpCodes.Ret)
+                return -1;
+            return 0;
+        }
+
         private static bool StoresFlag(IList<Il> code, int from, int to)
         {
             for (int i = from; i < to && i < code.Count; i++)

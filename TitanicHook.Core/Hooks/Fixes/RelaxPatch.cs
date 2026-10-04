@@ -153,6 +153,83 @@ public class RelaxSubmitPatch : TitanicPatch
     #endregion
 }
 
+/// <summary>
+/// The leaderboard request of builds that don't send their mods (b337 to b20130319) gets
+/// "&amp;mods=" with the mods chosen now, so the server shows the Relax or Autopilot board in song
+/// select. (Their bancho status has the mods only while playing.)
+/// </summary>
+public class LeaderboardModsPatch : TitanicPatch
+{
+    public const string HookName = "sh.Somtum.Hook.LeaderboardMods";
+
+    private static FieldInfo? _mods;
+    private static MethodInfo? _unwrap;
+
+    public LeaderboardModsPatch() : base(HookName)
+    {
+        foreach (MethodInfo method in ShapeCode.OsuMethods)
+        {
+            if (method.IsStatic && method.ReturnType == typeof(bool) && method.GetParameters().Length == 1 &&
+                ShapeCode.Shaped(method, c => OldClientShapes.CurrentModsRead(c) >= 0) is { } code &&
+                code[OldClientShapes.CurrentModsRead(code)].Operand is FieldInfo { IsStatic: true } mods)
+            {
+                _mods = mods;
+                // Obfuscated<Mods> (b20130303, b20130319): read through its conversion.
+                _unwrap = code.Count == 5 && code[1].Operand is MethodInfo { IsStatic: true } unwrap ? unwrap : null;
+                break;
+            }
+        }
+        if (_mods != null)
+        {
+            foreach (MethodInfo method in ShapeCode.OsuMethods)
+            {
+                if (ShapeCode.Shaped(method, HasRequest) is { } code && code[OldClientShapes.LeaderboardRequest(code)].Operand is ConstructorInfo ctor &&
+                    ctor.GetParameters()[0].ParameterType == typeof(string))
+                    TargetMethods.Add(method);
+            }
+        }
+        Logging.HookStep(HookName, _mods == null ? "Current mods not found" :
+            TargetMethods.Count == 0 ? "This build sends its mods with the leaderboard already" : $"Mods ({_mods.Name}) added to {TargetMethods.Count} leaderboard request(s)");
+        Transpilers = [AccessTools.Method(typeof(LeaderboardModsPatch), nameof(RequestTranspiler))];
+    }
+
+    /// <summary>The leaderboard URL with "&amp;mods=" (the mods chosen now) when it has none.</summary>
+    public static string WithMods(string url)
+    {
+        try
+        {
+            if (_mods != null && url != null && OldClientShapes.IsLeaderboardUrl(url) &&
+                url.IndexOf("mods=", StringComparison.Ordinal) < 0)
+            {
+                object? mods = _mods.GetValue(null);
+                if (_unwrap != null)
+                    mods = _unwrap.Invoke(null, [mods]);
+                return url + "&mods=" + Convert.ToInt32(mods).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+        }
+        catch (Exception)
+        {
+        }
+        return url!;
+    }
+
+    private static bool HasRequest(List<Il> code) => OldClientShapes.LeaderboardRequest(code) >= 0;
+
+    #region Hook
+
+    private static IEnumerable<CodeInstruction> RequestTranspiler(IEnumerable<CodeInstruction> instructions)
+    {
+        var list = new List<CodeInstruction>(instructions);
+        if (ShapeCode.Shaped(list, HasRequest) is not { } code)
+            return list;
+        // new Request(url) -> new Request(WithMods(url)), the URL being on the stack.
+        list.Insert(code[OldClientShapes.LeaderboardRequest(code)].At, new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(LeaderboardModsPatch), nameof(WithMods))));
+        return list;
+    }
+
+    #endregion
+}
+
 /// <summary>The Relax and Autopilot flags: "flag = has(mods, Relax)" where a play starts.</summary>
 internal static class RelaxFlags
 {
