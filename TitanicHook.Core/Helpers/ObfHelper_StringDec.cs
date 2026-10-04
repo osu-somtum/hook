@@ -19,13 +19,10 @@ public static partial class ObfHelper
                     t.IsSealed &&
                     t.IsNotPublic && 
                     !t.IsNested &&
-                    t.GetMethods(BindingFlags.Static | BindingFlags.Public).Length == 1
+                    MethodsOf(t, BindingFlags.Static | BindingFlags.Public).Length == 1
                     )
-        .SelectMany(t => t.GetMethods(BindingFlags.Static | BindingFlags.Public))
-        .FirstOrDefault(m => m.GetParameters().Length == 1 && 
-                             m.GetParameters()[0].ParameterType.FullName == "System.Int32" && 
-                             m.ReturnType.FullName == "System.String" /*&&*/ 
-                             /*SigScanning.GetOpcodes(m).StartsWith(_stringObfPrefix)*/); // TODO: control flow obfuscation in that method adds Br opcodes, this is not handled yet but for now the lookup works good enough
+        .SelectMany(t => MethodsOf(t, BindingFlags.Static | BindingFlags.Public))
+        .FirstOrDefault(IsDecryptSignature); // (and SigScanning.GetOpcodes(m).StartsWith(_stringObfPrefix)) // TODO: control flow obfuscation in that method adds Br opcodes, this is not handled yet but for now the lookup works good enough
 
     /// <summary>
     /// Reference to Eazfuscator string decrypt method
@@ -36,11 +33,35 @@ public static partial class ObfHelper
                     t.IsSealed &&
                     t.IsNotPublic &&
                     !t.IsNested)
-        .SelectMany(t => t.GetMethods(BindingFlags.Static | BindingFlags.NonPublic))
-        .FirstOrDefault(m => m.GetParameters().Length == 1 &&
-                             m.GetParameters()[0].ParameterType.FullName == "System.Int32" &&
-                             m.ReturnType.FullName == "System.String" /*&&*/
-                             /*SigScanning.MethodHasNoInlining(m)*/); // TODO: fucked attribute check
+        .SelectMany(t => MethodsOf(t, BindingFlags.Static | BindingFlags.NonPublic))
+        .FirstOrDefault(IsDecryptSignature); // (and SigScanning.MethodHasNoInlining(m)) // TODO: fucked attribute check
+
+    /// <summary>osu!somtum: string Decrypt(int); false when the signature can't be read.</summary>
+    private static bool IsDecryptSignature(MethodInfo m)
+    {
+        try
+        {
+            return m.GetParameters().Length == 1 && m.GetParameters()[0].ParameterType.FullName == "System.Int32" &&
+                   m.ReturnType.FullName == "System.String";
+        }
+        catch (System.Exception)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>osu!somtum: a type's methods, or none when they can't be read (a dependency that doesn't load).</summary>
+    private static MethodInfo[] MethodsOf(System.Type type, BindingFlags flags)
+    {
+        try
+        {
+            return type.GetMethods(flags);
+        }
+        catch (System.Exception)
+        {
+            return [];
+        }
+    }
     #endregion
     
     /// <summary>
