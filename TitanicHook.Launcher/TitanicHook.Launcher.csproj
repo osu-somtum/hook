@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>osu!somtum</AssemblyName>
+        <OutputType>WinExe</OutputType>
+        <!-- .NET 4: starts on any Windows 8+ (and 7 with .NET 4) without a .config file. -->
+        <TargetFramework>net40</TargetFramework>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>13</LangVersion>
+        <ApplicationIcon>..\TitanicHook.Loader\titanic.ico</ApplicationIcon>
+        <Version>1.4.0</Version>
+        <Company>osu!somtum</Company>
+        <AssemblyTitle>osu!somtum</AssemblyTitle>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <Reference Include="System.Windows.Forms" />
+      <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="All" />
+    </ItemGroup>
+
+    <!-- Both loaders (each merged into one exe by ILRepack in Release) go inside this exe; the
+         reference builds the loader for every framework it targets. -->
+    <ItemGroup>
+      <ProjectReference Include="..\TitanicHook.Loader\TitanicHook.Loader.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
+    </ItemGroup>
+    <Target Name="EmbedLoaders" BeforeTargets="PrepareForBuild" Condition="'$(Configuration)' == 'Release'">
+        <ItemGroup>
+            <EmbeddedResource Include="..\TitanicHook.Loader\bin\Release\net20\osu!somtum_merged.exe" LogicalName="net20.exe" />
+            <EmbeddedResource Include="..\TitanicHook.Loader\bin\Release\net20\osu!somtum_merged.exe.config" LogicalName="net20.exe.config" />
+            <EmbeddedResource Include="..\TitanicHook.Loader\bin\Release\net40\osu!somtum_merged.exe" LogicalName="net40.exe" />
+            <EmbeddedResource Include="..\TitanicHook.Loader\bin\Release\net40\osu!somtum_merged.exe.config" LogicalName="net40.exe.config" />
+        </ItemGroup>
+    </Target>
+</Project>

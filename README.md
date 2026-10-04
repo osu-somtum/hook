@@ -49,12 +49,16 @@ Any osu! (stable) client released between 2008 and 2015.
 
 ## Usage
 
-Put the release executable for the client's .NET Framework version in the osu! folder and run it.
-A configuration file (`osu!somtum.cfg`) is created on the first run.
+Put `osu!somtum.exe` in the osu! folder, next to `osu!.exe`, and run it. It works out which .NET
+Framework the build is for and starts the hook made for it (`osu!somtum.net20.exe` or
+`osu!somtum.net40.exe`, written next to it as hidden files). A configuration file (`osu!somtum.cfg`)
+is created on the first run.
 
 > [!TIP]
-> osu! versions before 2015 ran on .NET Framework 2.0. Cuttingedge since April 2015 and Stable since
-> November 2015 use .NET Framework 4.
+> osu! versions before 2015 ran on .NET Framework 2.0, and the 2015 cuttingedge builds on .NET
+> Framework 4. `osu!somtum.exe` needs .NET Framework 4 (built into Windows 8 and later). .NET 2.0
+> builds use the .NET 2.0 hook when .NET Framework 3.5 is installed, and otherwise run on .NET 4;
+> run `osu!somtum.exe --net40` to use .NET 4 for them anyway.
 
 ### Configuration
 
@@ -69,8 +73,10 @@ off. The rest you most likely don't need to touch.
 ## Building a self-contained release from source
 
 - Clone the repository including submodules
-- Build `TitanicHook.Loader` in the Release configuration
-- The build output has an `osu!somtum_merged.exe` with every dependency built in
+- Build the solution (or `TitanicHook.Launcher`) in the Release configuration
+- `TitanicHook.Launcher/bin/Release/net40/osu!somtum.exe` is the release: both hooks
+  (`TitanicHook.Loader`'s `osu!somtum_merged.exe` for net20 and net40, every dependency built in)
+  are inside it
 
 ## Developing
 
