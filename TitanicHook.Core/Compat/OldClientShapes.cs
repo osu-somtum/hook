@@ -46,12 +46,73 @@ namespace TitanicHook.Core.Compat
 
         /// <summary>A branch's target (index into the method's instructions), or -1.</summary>
         public int Target = -1;
+
+        /// <summary>Where the instruction is in the method itself (a patch edits that one).</summary>
+        public int At;
+
+        public Il Copy() => (Il)MemberwiseClone();
     }
 
     public static class OldClientShapes
     {
         public const int RelaxMod = 128;
         public const int AutopilotMod = 8192;
+
+        /// <summary>
+        /// The instructions in the order they run, for exes with control flow obfuscation (each
+        /// instruction followed by a "br" to the next, the blocks shuffled): an unconditional branch
+        /// to code not laid out yet is followed instead of kept; one back to code already laid out
+        /// stays. Each keeps its <see cref="Il.At"/>; branch targets point into the new list.
+        /// </summary>
+        public static List<Il> Flow(IList<Il> code)
+        {
+            int n = code.Count;
+            var laid = new int[n];
+            for (int i = 0; i < n; i++)
+                laid[i] = -1;
+            var order = new List<int>();
+            for (int start = 0; start < n; start++)
+            {
+                int i = start;
+                while (i >= 0 && i < n && laid[i] == -1)
+                {
+                    Il il = code[i];
+                    if ((il.Op == OpCodes.Br || il.Op == OpCodes.Br_S) && il.Target >= 0 && laid[il.Target] == -1 && il.Target != i)
+                    {
+                        laid[i] = -2; // followed, not kept
+                        i = il.Target;
+                        continue;
+                    }
+                    laid[i] = order.Count;
+                    order.Add(i);
+                    FlowControl flow = il.Op.FlowControl;
+                    if (flow == FlowControl.Branch || flow == FlowControl.Return || flow == FlowControl.Throw ||
+                        il.Op == OpCodes.Endfinally || il.Op == OpCodes.Leave || il.Op == OpCodes.Leave_S)
+                        break;
+                    i++;
+                }
+            }
+            var flowed = new List<Il>(order.Count);
+            foreach (int i in order)
+            {
+                Il il = code[i].Copy();
+                il.Target = il.Target < 0 ? -1 : LaidOut(code, laid, il.Target);
+                flowed.Add(il);
+            }
+            return flowed;
+        }
+
+        // A target's place in the flowed list: through the branches that were followed, not kept.
+        private static int LaidOut(IList<Il> code, int[] laid, int target)
+        {
+            for (int hops = 0; target >= 0 && target < code.Count && hops < code.Count; hops++)
+            {
+                if (laid[target] >= 0)
+                    return laid[target];
+                target = code[target].Target;
+            }
+            return -1;
+        }
 
         private static bool IsCall(Il i) => i.Op == OpCodes.Call || i.Op == OpCodes.Callvirt;
 
@@ -230,8 +291,11 @@ namespace TitanicHook.Core.Compat
             /// <summary>[load key] [ldstr "Artist"] [call ==] [brtrue case]: the load's index.</summary>
             public int LoadKey;
 
-            /// <summary>The case: [load beatmap] [load value] [stfld artist] [br end].</summary>
-            public int LoadBeatmap, LoadValue, Break;
+            /// <summary>
+            /// The case: [load beatmap] [load value] [stfld artist] [br end]. <see cref="Break"/> is -1 when
+            /// the br isn't next here (followed in <see cref="Flow"/>): it's the one after the stfld in the method.
+            /// </summary>
+            public int LoadBeatmap, LoadValue, Store, Break;
         }
 
         public static KeyCase? ArtistKey(IList<Il> code)
@@ -247,10 +311,11 @@ namespace TitanicHook.Core.Compat
                     !(code[k + 2].Op == OpCodes.Brtrue || code[k + 2].Op == OpCodes.Brtrue_S))
                     continue;
                 int t = code[k + 2].Target;
-                if (t < 0 || t + 3 >= code.Count || !IsLoad(code[t]) || !IsLoad(code[t + 1]) || code[t + 2].Op != OpCodes.Stfld ||
-                    code[t + 2].Type != "System.String" || !(code[t + 3].Op == OpCodes.Br || code[t + 3].Op == OpCodes.Br_S))
+                if (t < 0 || t + 2 >= code.Count || !IsLoad(code[t]) || !IsLoad(code[t + 1]) || code[t + 2].Op != OpCodes.Stfld ||
+                    code[t + 2].Type != "System.String")
                     continue;
-                return new KeyCase { LoadKey = k - 1, LoadBeatmap = t, LoadValue = t + 1, Break = t + 3 };
+                bool br = t + 3 < code.Count && (code[t + 3].Op == OpCodes.Br || code[t + 3].Op == OpCodes.Br_S);
+                return new KeyCase { LoadKey = k - 1, LoadBeatmap = t, LoadValue = t + 1, Store = t + 2, Break = br ? t + 3 : -1 };
             }
             return null;
         }

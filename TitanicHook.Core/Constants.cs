@@ -9,5 +9,5 @@ public static class Constants
     public const string LogFileName = "osu!somtum.log";
     // No self-update: releases are on osu-somtum/hook. (Titanic's is http://hook.titanic.sh.)
     public const string UpdateServer = "";
-    public const string PatchVersion = "1.3.1";
+    public const string PatchVersion = "1.3.2";
 }

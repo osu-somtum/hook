@@ -26,10 +26,10 @@ public class SongSwitchPatch : TitanicPatch
     {
         foreach (MethodInfo method in ShapeCode.OsuMethods)
         {
-            if (ShapeCode.Of(method) is not { } code || !CallsStreamCreateFile(code))
+            if (ShapeCode.Shaped(method, HasAudioCheck) is not { } code)
                 continue;
             int check = OldClientShapes.SameAudioCheck(code);
-            if (check < 0 || code[check - 2].Operand is not FieldInfo { FieldType: { } beatmap })
+            if (code[check - 2].Operand is not FieldInfo { FieldType: { } beatmap })
                 continue;
             _folder = FolderField(beatmap);
             if (_folder != null)
@@ -38,6 +38,8 @@ public class SongSwitchPatch : TitanicPatch
         Logging.HookStep(HookName, _folder != null ? $"Audio check found, folder is {_folder.Name}" : "No audio-only check (this build compares the folder)");
         Transpilers = [AccessTools.Method(typeof(SongSwitchPatch), nameof(SameFolderTranspiler))];
     }
+
+    private static bool HasAudioCheck(List<Il> code) => CallsStreamCreateFile(code) && OldClientShapes.SameAudioCheck(code) >= 0;
 
     private static bool CallsStreamCreateFile(List<Il> code)
     {
@@ -68,11 +70,8 @@ public class SongSwitchPatch : TitanicPatch
         }
         foreach (MethodBase member in members)
         {
-            if (ShapeCode.Of(member) is not { } code)
-                continue;
-            int folder = OldClientShapes.FolderAssignment(code, type);
-            if (folder >= 0)
-                return code[folder].Operand as FieldInfo;
+            if (ShapeCode.Shaped(member, c => OldClientShapes.FolderAssignment(c, type) >= 0) is { } code)
+                return code[OldClientShapes.FolderAssignment(code, type)].Operand as FieldInfo;
         }
         return null;
     }
@@ -82,16 +81,16 @@ public class SongSwitchPatch : TitanicPatch
     private static IEnumerable<CodeInstruction> SameFolderTranspiler(IEnumerable<CodeInstruction> instructions)
     {
         var list = new List<CodeInstruction>(instructions);
-        int equals = OldClientShapes.SameAudioCheck(ShapeCode.Of(list));
-        if (equals < 0 || _folder == null)
+        if (_folder == null || ShapeCode.Shaped(list, c => OldClientShapes.SameAudioCheck(c) >= 0) is not { } code)
             return list;
+        int equals = OldClientShapes.SameAudioCheck(code);
         // [ldsfld playing][brfalse][load next][ldfld audio][ldsfld playing][ldfld audio][call ==]
-        CodeInstruction next = list[equals - 4], playing = list[equals - 6];
-        list.InsertRange(equals + 1,
+        Il next = code[equals - 4], playing = code[equals - 6];
+        list.InsertRange(code[equals].At + 1,
         [
-            new CodeInstruction(next.opcode, next.operand),
+            new CodeInstruction(next.Op, next.Operand),
             new CodeInstruction(OpCodes.Ldfld, _folder),
-            new CodeInstruction(OpCodes.Ldsfld, playing.operand),
+            new CodeInstruction(OpCodes.Ldsfld, playing.Operand),
             new CodeInstruction(OpCodes.Ldfld, _folder),
             new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(string), "op_Equality", [typeof(string), typeof(string)])),
             new CodeInstruction(OpCodes.And)

@@ -43,7 +43,7 @@ public class ScreenModePatch : TitanicPatch
         int boxes = 0, windowed = 0;
         foreach (MethodInfo changer in changers)
         {
-            if (OldClientShapes.ModeMessageBoxes(ShapeCode.Of(changer)!).Count > 0)
+            if (ShapeCode.Shaped(changer, HasBoxes) != null)
             {
                 TargetMethods.Add(changer);
                 boxes++;
@@ -53,7 +53,7 @@ public class ScreenModePatch : TitanicPatch
         {
             foreach (MethodInfo method in ShapeCode.OsuMethods)
             {
-                if (ShapeCode.Of(method) is { } code && OldClientShapes.WindowedModeCall(code, _changer) >= 0 && !TargetMethods.Contains(method))
+                if (!TargetMethods.Contains(method) && ShapeCode.Shaped(method, HasWindowedCall) != null)
                 {
                     TargetMethods.Add(method);
                     windowed++;
@@ -87,27 +87,35 @@ public class ScreenModePatch : TitanicPatch
     private static IEnumerable<CodeInstruction> ScreenModeTranspiler(IEnumerable<CodeInstruction> instructions)
     {
         var list = new List<CodeInstruction>(instructions);
-        List<Il> code = ShapeCode.Of(list);
 
-        if (_changer != null && OldClientShapes.WindowedModeCall(code, _changer) is var windowed and >= 0)
-            list[windowed].operand = AccessTools.Method(typeof(ScreenModePatch), nameof(RestoreDesktopMode));
+        if (ShapeCode.Shaped(list, HasWindowedCall) is { } windowedCode)
+            list[windowedCode[OldClientShapes.WindowedModeCall(windowedCode, _changer!)].At].operand =
+                AccessTools.Method(typeof(ScreenModePatch), nameof(RestoreDesktopMode));
 
         // MessageBox.Show(args) -> the args dropped, DialogResult.OK (1) in place of its answer.
-        List<int> boxes = OldClientShapes.ModeMessageBoxes(code);
-        for (int i = boxes.Count - 1; i >= 0; i--)
+        if (ShapeCode.Shaped(list, HasBoxes) is { } code)
         {
-            int call = boxes[i];
-            int args = code[call].Params;
-            list[call].opcode = OpCodes.Pop;
-            list[call].operand = null;
-            var rest = new List<CodeInstruction>();
-            for (int a = 1; a < args; a++)
-                rest.Add(new CodeInstruction(OpCodes.Pop));
-            rest.Add(new CodeInstruction(OpCodes.Ldc_I4_1));
-            list.InsertRange(call + 1, rest);
+            var boxes = new List<Il>();
+            foreach (int box in OldClientShapes.ModeMessageBoxes(code))
+                boxes.Add(code[box]);
+            boxes.Sort((a, b) => b.At.CompareTo(a.At));
+            foreach (Il box in boxes)
+            {
+                list[box.At].opcode = OpCodes.Pop;
+                list[box.At].operand = null;
+                var rest = new List<CodeInstruction>();
+                for (int a = 1; a < box.Params; a++)
+                    rest.Add(new CodeInstruction(OpCodes.Pop));
+                rest.Add(new CodeInstruction(OpCodes.Ldc_I4_1));
+                list.InsertRange(box.At + 1, rest);
+            }
         }
         return list;
     }
+
+    private static bool HasBoxes(List<Il> code) => OldClientShapes.ModeMessageBoxes(code).Count > 0;
+
+    private static bool HasWindowedCall(List<Il> code) => _changer != null && OldClientShapes.WindowedModeCall(code, _changer) >= 0;
 
     #endregion
 }

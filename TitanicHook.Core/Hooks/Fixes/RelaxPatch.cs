@@ -30,7 +30,7 @@ public class RelaxJudgementPatch : TitanicPatch
         {
             foreach (MethodInfo method in ShapeCode.OsuMethods)
             {
-                if (ShapeCode.Of(method) is { } code && OldClientShapes.RelaxGates(code, _relax, _autopilot).Count > 0)
+                if (ShapeCode.Shaped(method, HasGates) != null)
                     TargetMethods.Add(method);
             }
         }
@@ -44,16 +44,18 @@ public class RelaxJudgementPatch : TitanicPatch
     private static IEnumerable<CodeInstruction> FlagsOffTranspiler(IEnumerable<CodeInstruction> instructions)
     {
         var list = new List<CodeInstruction>(instructions);
-        if (_relax == null)
+        if (_relax == null || ShapeCode.Shaped(list, HasGates) is not { } code)
             return list;
-        foreach (int load in OldClientShapes.RelaxGates(ShapeCode.Of(list), _relax, _autopilot))
+        foreach (int load in OldClientShapes.RelaxGates(code, _relax, _autopilot))
         {
             // The flag's load becomes "false"; the branch after it stays (labels on it are kept).
-            list[load].opcode = OpCodes.Ldc_I4_0;
-            list[load].operand = null;
+            list[code[load].At].opcode = OpCodes.Ldc_I4_0;
+            list[code[load].At].operand = null;
         }
         return list;
     }
+
+    private static bool HasGates(List<Il> code) => _relax != null && OldClientShapes.RelaxGates(code, _relax, _autopilot).Count > 0;
 
     #endregion
 }
@@ -94,8 +96,7 @@ public class RelaxLocalScorePatch : TitanicPatch
         }
         foreach (MethodInfo method in ShapeCode.OsuMethods)
         {
-            if (method.DeclaringType != null && rankingTypes.Contains(method.DeclaringType) &&
-                ShapeCode.Of(method) is { } code && OldClientShapes.ModPairCalls(code).Count > 0)
+            if (method.DeclaringType != null && rankingTypes.Contains(method.DeclaringType) && ShapeCode.Shaped(method, HasPair) != null)
                 TargetMethods.Add(method);
         }
         Logging.HookStep(HookName, $"{TargetMethods.Count} results screen check(s)");
@@ -107,15 +108,12 @@ public class RelaxLocalScorePatch : TitanicPatch
     private static IEnumerable<CodeInstruction> ModsOffTranspiler(IEnumerable<CodeInstruction> instructions)
     {
         var list = new List<CodeInstruction>(instructions);
-        List<int> calls = OldClientShapes.ModPairCalls(ShapeCode.Of(list));
-        for (int i = calls.Count - 1; i >= 0; i--)
-        {
-            // has(mods, mod) -> its answer dropped, "false" instead.
-            list.Insert(calls[i] + 1, new CodeInstruction(OpCodes.Pop));
-            list.Insert(calls[i] + 2, new CodeInstruction(OpCodes.Ldc_I4_0));
-        }
+        if (ShapeCode.Shaped(list, HasPair) is { } code)
+            RelaxFlags.AnswerFalse(list, code, OldClientShapes.ModPairCalls(code));
         return list;
     }
+
+    private static bool HasPair(List<Il> code) => OldClientShapes.ModPairCalls(code).Count > 0;
 
     #endregion
 }
@@ -133,7 +131,7 @@ public class RelaxSubmitPatch : TitanicPatch
     {
         foreach (MethodInfo method in ShapeCode.OsuMethods)
         {
-            if (method.ReturnType == typeof(bool) && ShapeCode.Of(method) is { } code && OldClientShapes.RankedModsChecks(code).Count > 0)
+            if (method.ReturnType == typeof(bool) && ShapeCode.Shaped(method, HasRankedChecks) != null)
                 TargetMethods.Add(method);
         }
         Logging.HookStep(HookName, TargetMethods.Count == 0 ? "This build submits Relax/Autopilot plays already" : $"{TargetMethods.Count} ranked mods check(s)");
@@ -145,15 +143,12 @@ public class RelaxSubmitPatch : TitanicPatch
     private static IEnumerable<CodeInstruction> RankedTranspiler(IEnumerable<CodeInstruction> instructions)
     {
         var list = new List<CodeInstruction>(instructions);
-        List<int> calls = OldClientShapes.RankedModsChecks(ShapeCode.Of(list));
-        for (int i = calls.Count - 1; i >= 0; i--)
-        {
-            // has(mods, Relax/Autopilot) -> its answer dropped, "false" instead.
-            list.Insert(calls[i] + 1, new CodeInstruction(OpCodes.Pop));
-            list.Insert(calls[i] + 2, new CodeInstruction(OpCodes.Ldc_I4_0));
-        }
+        if (ShapeCode.Shaped(list, HasRankedChecks) is { } code)
+            RelaxFlags.AnswerFalse(list, code, OldClientShapes.RankedModsChecks(code));
         return list;
     }
+
+    private static bool HasRankedChecks(List<Il> code) => OldClientShapes.RankedModsChecks(code).Count > 0;
 
     #endregion
 }
@@ -171,7 +166,7 @@ internal static class RelaxFlags
             _searched = true;
             foreach (MethodInfo method in ShapeCode.OsuMethods)
             {
-                if (ShapeCode.Of(method) is not { } code)
+                if (ShapeCode.Shaped(method, SetsFlag) is not { } code)
                     continue;
                 int r = OldClientShapes.FlagAssignment(code, OldClientShapes.RelaxMod);
                 if (r >= 0 && _relax == null)
@@ -189,5 +184,22 @@ internal static class RelaxFlags
         relax = _relax;
         autopilot = _autopilot;
         owner = _owner;
+    }
+
+    private static bool SetsFlag(List<Il> code) =>
+        OldClientShapes.FlagAssignment(code, OldClientShapes.RelaxMod) >= 0 || OldClientShapes.FlagAssignment(code, OldClientShapes.AutopilotMod) >= 0;
+
+    /// <summary>"has(mods, mod)" calls (indices into <paramref name="code"/>) answer false: their answer dropped, false instead.</summary>
+    public static void AnswerFalse(List<CodeInstruction> list, List<Il> code, List<int> calls)
+    {
+        var at = new List<int>();
+        foreach (int call in calls)
+            at.Add(code[call].At);
+        at.Sort();
+        for (int i = at.Count - 1; i >= 0; i--)
+        {
+            list.Insert(at[i] + 1, new CodeInstruction(OpCodes.Pop));
+            list.Insert(at[i] + 2, new CodeInstruction(OpCodes.Ldc_I4_0));
+        }
     }
 }

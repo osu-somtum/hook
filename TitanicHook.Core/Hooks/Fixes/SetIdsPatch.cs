@@ -30,7 +30,7 @@ public class SetIdsPatch : TitanicPatch
         {
             foreach (MethodInfo loader in BeatmapCompatPatch.FindLoaders())
             {
-                if (ShapeCode.Of(loader) is { } code && OldClientShapes.ArtistKey(code) != null)
+                if (ShapeCode.Shaped(loader, HasArtistKey) != null)
                     TargetMethods.Add(loader);
             }
         }
@@ -47,13 +47,14 @@ public class SetIdsPatch : TitanicPatch
     {
         foreach (MethodInfo method in ShapeCode.OsuMethods)
         {
-            if (ShapeCode.Of(method) is not { } code)
+            if (ShapeCode.Shaped(method, c => OldClientShapes.DownloadedLookup(c) >= 0) is not { } code)
                 continue;
             int call = OldClientShapes.DownloadedLookup(code);
-            if (call < 0 || code[call].Operand is not MethodBase lookup || ShapeCode.Of(lookup) is not { } lookupCode)
+            if (code[call].Operand is not MethodBase lookup || ShapeCode.Shaped(lookup, c => OldClientShapes.Predicate(c) >= 0) is not { } lookupCode)
                 continue;
             int predicate = OldClientShapes.Predicate(lookupCode);
-            if (predicate < 0 || lookupCode[predicate].Operand is not MethodBase compare || ShapeCode.Of(compare) is not { } compareCode)
+            if (lookupCode[predicate].Operand is not MethodBase compare ||
+                ShapeCode.Shaped(compare, c => OldClientShapes.ComparedField(c) >= 0) is not { } compareCode)
                 continue;
             int field = OldClientShapes.ComparedField(compareCode);
             if (field >= 0 && compareCode[field].Operand is FieldInfo { FieldType: var type } setId && type == typeof(int))
@@ -81,28 +82,35 @@ public class SetIdsPatch : TitanicPatch
     private static IEnumerable<CodeInstruction> SetIdTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator)
     {
         var list = new List<CodeInstruction>(instructions);
-        if (OldClientShapes.ArtistKey(ShapeCode.Of(list)) is not { } artist)
+        if (ShapeCode.Shaped(list, HasArtistKey) is not { } code || OldClientShapes.ArtistKey(code) is not { } artist)
+            return list;
+        // The case's way out: its br (after the stfld in the method itself, when the br was followed).
+        CodeInstruction exit = artist.Break >= 0 ? list[code[artist.Break].At] : list[code[artist.Store].At + 1];
+        if (exit.opcode != OpCodes.Br && exit.opcode != OpCodes.Br_S)
             return list;
         // In front of [load key][ldstr "Artist"][call ==][brtrue case]:
         //   if (key == "BeatmapSetID") { SetIdsPatch.Read(beatmap, value); break; }
         // where the beatmap, the value and the break are the "Artist" case's own.
-        CodeInstruction key = list[artist.LoadKey];
+        int at = code[artist.LoadKey].At;
+        CodeInstruction key = list[at];
         Label artistKey = generator.DefineLabel();
         var check = new CodeInstruction(key.opcode, key.operand) { labels = key.labels };
         key.labels = [artistKey];
-        list.InsertRange(artist.LoadKey,
+        list.InsertRange(at,
         [
             check,
             new CodeInstruction(OpCodes.Ldstr, "BeatmapSetID"),
             new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(string), "op_Equality", [typeof(string), typeof(string)])),
             new CodeInstruction(OpCodes.Brfalse, artistKey),
-            new CodeInstruction(list[artist.LoadBeatmap].opcode, list[artist.LoadBeatmap].operand),
-            new CodeInstruction(list[artist.LoadValue].opcode, list[artist.LoadValue].operand),
+            new CodeInstruction(code[artist.LoadBeatmap].Op, code[artist.LoadBeatmap].Operand),
+            new CodeInstruction(code[artist.LoadValue].Op, code[artist.LoadValue].Operand),
             new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(SetIdsPatch), nameof(Read))),
-            new CodeInstruction(OpCodes.Br, list[artist.Break].operand)
+            new CodeInstruction(OpCodes.Br, exit.operand)
         ]);
         return list;
     }
+
+    private static bool HasArtistKey(List<Il> code) => OldClientShapes.ArtistKey(code) != null;
 
     #endregion
 }

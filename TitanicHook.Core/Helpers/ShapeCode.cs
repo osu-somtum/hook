@@ -20,7 +20,9 @@ namespace TitanicHook.Core.Helpers;
 public static class ShapeCode
 {
     private static List<MethodInfo>? _osuMethods;
-    private static readonly Dictionary<MethodBase, List<Il>?> Cache = new();
+    private static readonly Dictionary<MethodBase, List<Il>?> Raw = new();
+    private static readonly Dictionary<MethodBase, List<Il>?> Readable = new();
+    private static readonly Dictionary<MethodBase, List<Il>?> FlowedCache = new();
 
     /// <summary>Every method of osu!'s own types that has a body.</summary>
     public static List<MethodInfo> OsuMethods
@@ -61,13 +63,63 @@ public static class ShapeCode
     public static void Forget()
     {
         _osuMethods = null;
-        Cache.Clear();
+        Raw.Clear();
+        Readable.Clear();
+        FlowedCache.Clear();
     }
 
-    /// <summary>The method's instructions, or null when they can't be read.</summary>
+    /// <summary>
+    /// The method's instructions as found, with encrypted strings read as the text they are, or null
+    /// when they can't be read.
+    /// </summary>
     public static List<Il>? Of(MethodBase method)
     {
-        if (Cache.TryGetValue(method, out List<Il>? cached))
+        if (!Readable.TryGetValue(method, out List<Il>? code))
+        {
+            code = RawOf(method) is { } raw ? Decrypted(raw) : null;
+            Readable[method] = code;
+        }
+        return code;
+    }
+
+    /// <summary>The same in the order they run (for control flow obfuscation, <see cref="OldClientShapes.Flow"/>).</summary>
+    public static List<Il>? Flowed(MethodBase method)
+    {
+        if (!FlowedCache.TryGetValue(method, out List<Il>? code))
+        {
+            code = RawOf(method) is { } raw ? Decrypted(OldClientShapes.Flow(raw)) : null;
+            FlowedCache[method] = code;
+        }
+        return code;
+    }
+
+    /// <summary>
+    /// The method's instructions in the form <paramref name="found"/> finds its shape in: as they
+    /// are, else in the order they run (exes with control flow obfuscation); null when neither.
+    /// </summary>
+    public static List<Il>? Shaped(MethodBase method, Func<List<Il>, bool> found)
+    {
+        if (Of(method) is not { } code)
+            return null;
+        if (found(code))
+            return code;
+        return Flowed(method) is { } flowed && found(flowed) ? flowed : null;
+    }
+
+    /// <summary>Harmony's instructions (in a transpiler) the same way: each <see cref="Il.At"/> is its index there.</summary>
+    public static List<Il>? Shaped(List<CodeInstruction> instructions, Func<List<Il>, bool> found)
+    {
+        List<Il> raw = RawOf(instructions);
+        List<Il> code = Decrypted(raw);
+        if (found(code))
+            return code;
+        List<Il> flowed = Decrypted(OldClientShapes.Flow(raw));
+        return found(flowed) ? flowed : null;
+    }
+
+    private static List<Il>? RawOf(MethodBase method)
+    {
+        if (Raw.TryGetValue(method, out List<Il>? cached))
             return cached;
         List<Il>? code;
         try
@@ -89,6 +141,7 @@ public static class ShapeCode
                     _ => null
                 };
                 Il il = Describe(instruction.OpCode, operand);
+                il.At = code.Count;
                 if (instruction is InlineBrTargetInstruction br && index.TryGetValue(br.TargetOffset, out int target))
                     il.Target = target;
                 else if (instruction is ShortInlineBrTargetInstruction sbr && index.TryGetValue(sbr.TargetOffset, out int shortTarget))
@@ -100,12 +153,11 @@ public static class ShapeCode
         {
             code = null;
         }
-        Cache[method] = code;
+        Raw[method] = code;
         return code;
     }
 
-    /// <summary>Harmony's instructions (in a transpiler), one <see cref="Il"/> each.</summary>
-    public static List<Il> Of(List<CodeInstruction> instructions)
+    private static List<Il> RawOf(List<CodeInstruction> instructions)
     {
         var labels = new Dictionary<Label, int>();
         for (int i = 0; i < instructions.Count; i++)
@@ -117,11 +169,76 @@ public static class ShapeCode
         foreach (CodeInstruction instruction in instructions)
         {
             Il il = Describe(instruction.opcode, instruction.operand);
+            il.At = code.Count;
             if (instruction.operand is Label label && labels.TryGetValue(label, out int target))
                 il.Target = target;
             code.Add(il);
         }
         return code;
+    }
+
+    /// <summary>
+    /// Encrypted strings ([ldc id][call decrypt]) as one string load with the text, so the shapes read
+    /// them like ldstr (the load's <see cref="Il.At"/> is the decrypt call's).
+    /// </summary>
+    private static List<Il> Decrypted(List<Il> code)
+    {
+        int token;
+        try
+        {
+            if (!ObfHelper.HasStringDecrypt)
+                return code;
+            token = ObfHelper.StringObfToken;
+        }
+        catch (Exception)
+        {
+            return code;
+        }
+        bool any = false;
+        for (int i = 0; i + 1 < code.Count && !any; i++)
+            any = code[i].Int != null && IsDecrypt(code[i + 1], token);
+        if (!any)
+            return code;
+
+        var index = new int[code.Count];
+        var kept = new List<Il>(code.Count);
+        for (int i = 0; i < code.Count; i++)
+        {
+            if (i + 1 < code.Count && code[i].Int is { } id && IsDecrypt(code[i + 1], token))
+            {
+                Il text = code[i + 1].Copy();
+                text.Op = OpCodes.Ldstr;
+                text.Str = SafeDecrypt(id);
+                index[i] = index[i + 1] = kept.Count;
+                kept.Add(text);
+                i++;
+                continue;
+            }
+            index[i] = kept.Count;
+            kept.Add(code[i].Copy());
+        }
+        foreach (Il il in kept)
+        {
+            if (il.Target >= 0 && il.Target < index.Length)
+                il.Target = index[il.Target];
+        }
+        return kept;
+    }
+
+    private static bool IsDecrypt(Il il, int token) =>
+        (il.Op == OpCodes.Call || il.Op == OpCodes.Callvirt) && il.Operand is MethodBase method && method.MetadataToken == token &&
+        il.Params == 1 && il.Type == "System.String";
+
+    private static string? SafeDecrypt(int id)
+    {
+        try
+        {
+            return ObfHelper.DecString(id);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     /// <summary>A method's identity, as its calls' <see cref="Il.Member"/>.</summary>
