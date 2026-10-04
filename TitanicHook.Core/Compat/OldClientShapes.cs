@@ -133,8 +133,12 @@ namespace TitanicHook.Core.Compat
                 {
                     if (code[j].Int == AutopilotMod && IsCall(code[j + 1]) && code[j + 1].Member == code[k + 1].Member)
                     {
-                        calls.Add(k + 1);
-                        calls.Add(j + 1);
+                        // Not the player's own flag setup ("flag = has(mods, Relax) && ..."): that stores them.
+                        if (!StoresFlag(code, k + 2, j + 10))
+                        {
+                            calls.Add(k + 1);
+                            calls.Add(j + 1);
+                        }
                         break;
                     }
                 }
@@ -168,6 +172,16 @@ namespace TitanicHook.Core.Compat
                     calls.Add(call);
             }
             return calls;
+        }
+
+        private static bool StoresFlag(IList<Il> code, int from, int to)
+        {
+            for (int i = from; i < to && i < code.Count; i++)
+            {
+                if ((code[i].Op == OpCodes.Stsfld || code[i].Op == OpCodes.Stfld) && code[i].Type == "System.Boolean")
+                    return true;
+            }
+            return false;
         }
 
         // ── 8. Song switch ─────────────────────────────────────────────────────────────────────
