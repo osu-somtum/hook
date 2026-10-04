@@ -120,6 +120,44 @@ public class RelaxLocalScorePatch : TitanicPatch
     #endregion
 }
 
+/// <summary>
+/// Relax and Autopilot plays are submitted (b452 to b1844, whose ranked mods check refused them; later
+/// builds submit them already), for the server's Relax and Autopilot leaderboards. SpunOut and
+/// Autoplay stay unranked.
+/// </summary>
+public class RelaxSubmitPatch : TitanicPatch
+{
+    public const string HookName = "sh.Somtum.Hook.RelaxSubmit";
+
+    public RelaxSubmitPatch() : base(HookName)
+    {
+        foreach (MethodInfo method in ShapeCode.OsuMethods)
+        {
+            if (method.ReturnType == typeof(bool) && ShapeCode.Of(method) is { } code && OldClientShapes.RankedModsChecks(code).Count > 0)
+                TargetMethods.Add(method);
+        }
+        Logging.HookStep(HookName, TargetMethods.Count == 0 ? "This build submits Relax/Autopilot plays already" : $"{TargetMethods.Count} ranked mods check(s)");
+        Transpilers = [AccessTools.Method(typeof(RelaxSubmitPatch), nameof(RankedTranspiler))];
+    }
+
+    #region Hook
+
+    private static IEnumerable<CodeInstruction> RankedTranspiler(IEnumerable<CodeInstruction> instructions)
+    {
+        var list = new List<CodeInstruction>(instructions);
+        List<int> calls = OldClientShapes.RankedModsChecks(ShapeCode.Of(list));
+        for (int i = calls.Count - 1; i >= 0; i--)
+        {
+            // has(mods, Relax/Autopilot) -> its answer dropped, "false" instead.
+            list.Insert(calls[i] + 1, new CodeInstruction(OpCodes.Pop));
+            list.Insert(calls[i] + 2, new CodeInstruction(OpCodes.Ldc_I4_0));
+        }
+        return list;
+    }
+
+    #endregion
+}
+
 /// <summary>The Relax and Autopilot flags: "flag = has(mods, Relax)" where a play starts.</summary>
 internal static class RelaxFlags
 {

@@ -28,7 +28,9 @@ under the same license (GPLv3 or later).
   and a refused mode doesn't show "Unable to process your request" boxes.
 - **Relax and Autopilot**, as [osu-somtum-patcher](https://github.com/osu-somtum/osu-somtum-patcher)
   does for today's osu!: misses show their X (from b639), a broken combo plays its sound, and the
-  results screen keeps the play as a local score like any other (from b699).
+  results screen keeps the play as a local score like any other (from b699). b452 to b1844 submit
+  Relax/Autopilot plays (their ranked mods check refused them; later builds do already), for the
+  server's Relax and Autopilot leaderboards.
 - **No updater.** The 2014-15 updater's check answers "no update": the server's list would replace
   the build with today's osu!, and failing checks make the game repair itself.
 - **No self-update.** Releases are on osu-somtum/hook.

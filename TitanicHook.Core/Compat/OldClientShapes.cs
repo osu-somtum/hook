@@ -142,6 +142,34 @@ namespace TitanicHook.Core.Compat
             return calls;
         }
 
+        /// <summary>
+        /// The ranked mods check (b452 to b1844: what decides a play is submitted, and "unranked" on
+        /// screen): "!has(Relax) &amp;&amp; !has(Autopilot) &amp;&amp; !has(SpunOut) ... !has(Autoplay)", in a bool
+        /// method that names SpunOut and Autoplay. The indices of the Relax and Autopilot checks' calls
+        /// ([ldc mod][call], or [ldc mod][load mods][call]).
+        /// </summary>
+        public static List<int> RankedModsChecks(IList<Il> code)
+        {
+            var calls = new List<int>();
+            bool spunOut = false, autoplay = false;
+            foreach (Il i in code)
+            {
+                spunOut |= i.Int == 4096;
+                autoplay |= i.Int == 2048;
+            }
+            if (!spunOut || !autoplay)
+                return calls;
+            for (int k = 0; k + 1 < code.Count; k++)
+            {
+                if (code[k].Int != RelaxMod && code[k].Int != AutopilotMod)
+                    continue;
+                int call = IsCall(code[k + 1]) ? k + 1 : k + 2 < code.Count && IsLoad(code[k + 1]) && IsCall(code[k + 2]) ? k + 2 : -1;
+                if (call >= 0 && code[call].Type == "System.Boolean" && call + 1 < code.Count && IsCondBranch(code[call + 1]))
+                    calls.Add(call);
+            }
+            return calls;
+        }
+
         // ── 8. Song switch ─────────────────────────────────────────────────────────────────────
 
         /// <summary>

@@ -76,7 +76,7 @@ public class Configuration
     /// <summary>osu!somtum: windowed mode puts back the desktop's own screen mode, a refused mode shows no message boxes (ScreenModePatch).</summary>
     public bool FixScreenMode { get; set; } = true;
 
-    /// <summary>osu!somtum: Relax/Autopilot show misses, sound combo breaks and keep local scores (RelaxJudgementPatch, RelaxLocalScorePatch).</summary>
+    /// <summary>osu!somtum: Relax/Autopilot show misses, sound combo breaks, keep local scores and are submitted (RelaxJudgementPatch, RelaxLocalScorePatch, RelaxSubmitPatch).</summary>
     public bool RelaxFixes { get; set; } = true;
     
     /// <summary>

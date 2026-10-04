@@ -103,6 +103,7 @@ public static class EntryPoint
         {
             ApplyIfFound(new RelaxJudgementPatch());
             ApplyIfFound(new RelaxLocalScorePatch()); // b699 on
+            ApplyIfFound(new RelaxSubmitPatch()); // b452 to b1844
         }
         ShapeCode.Forget();
         if (Config.DisableUpdater)
