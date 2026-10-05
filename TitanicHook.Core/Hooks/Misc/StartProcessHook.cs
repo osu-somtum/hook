@@ -41,6 +41,11 @@ public class StartProcessHook : TitanicPatch
     {
         Logging.HookTrigger(HookName);
         
+        // osu!somtum: b639 to b1844 put "http://" in front of a chat link that doesn't start with it,
+        // https:// ones included ("http://https://...").
+        if (__0.FileName.StartsWith("http://https://") || __0.FileName.StartsWith("http://http://"))
+            __0.FileName = __0.FileName.Substring("http://".Length);
+
         // Do not replace the link for copyright button
         if (CopyrightRegex.IsMatch(__0.FileName)) return;
         

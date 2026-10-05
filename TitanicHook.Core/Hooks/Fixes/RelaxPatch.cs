@@ -61,6 +61,60 @@ public class RelaxJudgementPatch : TitanicPatch
 }
 
 /// <summary>
+/// The HUD under Relax and Autopilot shows as in any play (b394a on): score, accuracy, combo, HP bar,
+/// progress bar/pie, the leaderboard during the play and taiko's score popups, which osu! hid under
+/// them. The flag loads those checks read (<see cref="OldClientShapes.HudGates"/>) read as off there.
+/// </summary>
+public class RelaxHudPatch : TitanicPatch
+{
+    public const string HookName = "sh.Somtum.Hook.RelaxHud";
+
+    private static string? _relax, _autopilot;
+
+    public RelaxHudPatch() : base(HookName)
+    {
+        RelaxFlags.Find(out _relax, out _autopilot, out _);
+        if (_relax != null)
+        {
+            foreach (MethodInfo method in ShapeCode.OsuMethods)
+            {
+                if (ShapeCode.Shaped(method, HasGates) != null)
+                    TargetMethods.Add(method);
+            }
+            // Score and accuracy, the HP bar: in their constructors.
+            foreach (ConstructorInfo constructor in ShapeCode.OsuConstructors)
+            {
+                if (ShapeCode.Shaped(constructor, HasGates) != null)
+                    TargetConstructors.Add(constructor);
+            }
+        }
+        Logging.HookStep(HookName, _relax == null ? "Relax flag not found" :
+            $"{TargetMethods.Count + TargetConstructors.Count} method(s) hiding the HUD under Relax/Autopilot");
+        Transpilers = [AccessTools.Method(typeof(RelaxHudPatch), nameof(HudOnTranspiler))];
+    }
+
+    #region Hook
+
+    private static IEnumerable<CodeInstruction> HudOnTranspiler(IEnumerable<CodeInstruction> instructions)
+    {
+        var list = new List<CodeInstruction>(instructions);
+        if (_relax == null || ShapeCode.Shaped(list, HasGates) is not { } code)
+            return list;
+        foreach (int load in OldClientShapes.HudGates(code, _relax, _autopilot))
+        {
+            // The flag's load becomes "false"; the branch after it stays (labels on it are kept).
+            list[code[load].At].opcode = OpCodes.Ldc_I4_0;
+            list[code[load].At].operand = null;
+        }
+        return list;
+    }
+
+    private static bool HasGates(List<Il> code) => _relax != null && OldClientShapes.HudGates(code, _relax, _autopilot).Count > 0;
+
+    #endregion
+}
+
+/// <summary>
 /// Relax and Autopilot plays are local scores (best, grade) like any other, as osu-somtum-patcher
 /// does for today's osu! (from b699): the results screen's "has(mods, Relax)" and "has(mods,
 /// Autopilot)" read as false.

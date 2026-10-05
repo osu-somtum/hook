@@ -20,6 +20,7 @@ namespace TitanicHook.Core.Helpers;
 public static class ShapeCode
 {
     private static List<MethodInfo>? _osuMethods;
+    private static List<ConstructorInfo>? _osuConstructors;
     private static readonly Dictionary<MethodBase, List<Il>?> Raw = new();
     private static readonly Dictionary<MethodBase, List<Il>?> Readable = new();
     private static readonly Dictionary<MethodBase, List<Il>?> FlowedCache = new();
@@ -59,10 +60,46 @@ public static class ShapeCode
         }
     }
 
+    /// <summary>Every instance constructor of osu!'s own types (the HUD parts set themselves up there).</summary>
+    public static List<ConstructorInfo> OsuConstructors
+    {
+        get
+        {
+            if (_osuConstructors != null)
+                return _osuConstructors;
+            _osuConstructors = [];
+            foreach (Type type in AssemblyUtils.OsuTypes)
+            {
+                ConstructorInfo[] constructors;
+                try
+                {
+                    constructors = type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+                }
+                catch (Exception)
+                {
+                    continue;
+                }
+                foreach (ConstructorInfo constructor in constructors)
+                {
+                    try
+                    {
+                        if (!constructor.ContainsGenericParameters && constructor.GetMethodBody() != null)
+                            _osuConstructors.Add(constructor);
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+            }
+            return _osuConstructors;
+        }
+    }
+
     /// <summary>Lets go of the methods and instructions read (once every patch has found its targets).</summary>
     public static void Forget()
     {
         _osuMethods = null;
+        _osuConstructors = null;
         Raw.Clear();
         Readable.Clear();
         FlowedCache.Clear();

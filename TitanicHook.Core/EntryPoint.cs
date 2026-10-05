@@ -102,10 +102,12 @@ public static class EntryPoint
         if (Config.RelaxFixes)
         {
             ApplyIfFound(new RelaxJudgementPatch());
+            ApplyIfFound(new RelaxHudPatch()); // b394a on
             ApplyIfFound(new RelaxLocalScorePatch()); // b699 on
             ApplyIfFound(new RelaxSubmitPatch()); // b452 to b1844
             ApplyIfFound(new LeaderboardModsPatch()); // b337 to b20130319
         }
+        ApplyIfFound(new ChatLinksPatch()); // b337 to b20121223
         ShapeCode.Forget();
         if (Config.DisableUpdater)
         {
@@ -139,7 +141,7 @@ public static class EntryPoint
     /// <summary>osu!somtum: patches that only some builds need are applied where their code was found.</summary>
     private static void ApplyIfFound(TitanicPatch patch)
     {
-        if (patch.TargetMethods.Count > 0)
+        if (patch.TargetMethods.Count > 0 || patch.TargetConstructors.Count > 0)
             PatchManager.Apply(patch);
     }
 

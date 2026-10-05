@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2026 osu!somtum
 //
 // osu!somtum: where an old client does what the decompiled clients' somtum patcher changes (its steps
-// 6 to 9), found by the shape of the IL, not by names (obfuscation changes those). These are plain
+// 6 to 10), found by the shape of the IL, not by names (obfuscation changes those). These are plain
 // functions over a method's instructions, so the same code runs in the hook (on Harmony's
 // instructions) and in tests on every original build.
 
@@ -180,6 +180,160 @@ namespace TitanicHook.Core.Compat
         }
 
         /// <summary>
+        /// The flag loads that hide the HUD under Relax/Autopilot (read as false, it shows as in any play;
+        /// b394a on):
+        /// <list type="bullet">
+        /// <item>score and accuracy, combo, HP bar: "if (!relax &amp;&amp; !autopilot)" (optionally "|| Mode ==
+        /// Taiko") around one to four "manager.Add(sprites)" calls, or "else Visible = false;";</item>
+        /// <item>the progress bar/pie: "if (type != Off &amp;&amp; !relax &amp;&amp; !autopilot)";</item>
+        /// <item>the leaderboard during the play: "if (... || relax || autopilot || scoreBoard != null) return;"
+        /// (b394a and b420: "if (... &amp;&amp; !relax) { if (beatmap.OnlineScores != null ...");</item>
+        /// <item>taiko's score popups ("if (!relax) { int num = score - shown; ...") and its full HP
+        /// bar flash ("if (relax) return;" before "hp == 200.0").</item>
+        /// </list>
+        /// </summary>
+        public static List<int> HudGates(IList<Il> code, string relax, string? autopilot)
+        {
+            var loads = new List<int>();
+            List<int> judgements = RelaxGates(code, relax, autopilot); // misses and the combo break: not the HUD
+            for (int k = 0; k + 1 < code.Count; k++)
+            {
+                if (code[k].Op != OpCodes.Ldsfld || code[k].Member != relax || !IsCondBranch(code[k + 1]) || judgements.Contains(k))
+                    continue;
+                int ap = autopilot != null && k + 3 < code.Count && code[k + 2].Op == OpCodes.Ldsfld &&
+                         code[k + 2].Member == autopilot && IsCondBranch(code[k + 3]) ? k + 2 : -1;
+                int after = ap >= 0 ? ap + 2 : k + 2;
+                if (!HudAdds(code, k, ap, after) && !HudHidden(code, k, ap, after) && !HudProgressBar(code, k, ap, after) &&
+                    !HudLeaderboard(code, k, ap, after) && !TaikoScorePopups(code, k) && !TaikoFullBar(code, k))
+                    continue;
+                loads.Add(k);
+                if (ap >= 0)
+                    loads.Add(ap);
+            }
+            return loads;
+        }
+
+        private static bool IsBrTrue(Il i) => i.Op == OpCodes.Brtrue || i.Op == OpCodes.Brtrue_S;
+
+        private static bool IsBrFalse(Il i) => i.Op == OpCodes.Brfalse || i.Op == OpCodes.Brfalse_S;
+
+        // "if (!relax && !autopilot) { adds }": both branch past the adds when on. With "|| Mode == Taiko":
+        // relax jumps to the mode check, autopilot off to the adds, the check past them when not taiko.
+        private static bool HudAdds(IList<Il> code, int k, int ap, int after)
+        {
+            int end = code[k + 1].Target;
+            if (!IsBrTrue(code[k + 1]))
+                return false;
+            if (end == after && ap >= 0 && IsBrFalse(code[ap + 1]) && after + 2 < code.Count &&
+                (IsCall(code[after]) || code[after].Op == OpCodes.Ldsfld) && code[after].Params == 0 && code[after + 1].Int == 1 &&
+                (code[after + 2].Op == OpCodes.Bne_Un || code[after + 2].Op == OpCodes.Bne_Un_S) && code[ap + 1].Target == after + 3)
+                return OnlyAdds(code, after + 3, code[after + 2].Target);
+            if (ap >= 0 && (!IsBrTrue(code[ap + 1]) || code[ap + 1].Target != end))
+                return false;
+            return OnlyAdds(code, after, end);
+        }
+
+        // HP bar: "if (!relax && !autopilot) add; else Visible = false;" (b476 to b504: "if (relax)
+        // Visible = false; else add;"): the hiding block is "this.set(false)", the other one adds.
+        private static bool HudHidden(IList<Il> code, int k, int ap, int after)
+        {
+            int hide, add;
+            if (ap >= 0 && IsBrTrue(code[k + 1]) && IsBrFalse(code[ap + 1]))
+            {
+                hide = code[k + 1].Target;
+                add = code[ap + 1].Target;
+            }
+            else if (ap < 0 && IsBrFalse(code[k + 1]))
+            {
+                hide = after;
+                add = code[k + 1].Target;
+            }
+            else
+                return false;
+            if (hide < 0 || hide + 3 >= code.Count || add <= hide || code[hide].Op != OpCodes.Ldarg_0 || code[hide + 1].Int != 0 ||
+                !IsCall(code[hide + 2]) || code[hide + 2].Type != "System.Void" || code[hide + 2].Params != 1)
+                return false;
+            int end = code[hide + 3].Op == OpCodes.Ret ? code.Count : code[hide + 3].Target;
+            for (int i = add; i < code.Count && i < end; i++)
+            {
+                if (code[i].Op == OpCodes.Ret)
+                    return OnlyAdds(code, add, i);
+            }
+            return end > add && end <= code.Count && OnlyAdds(code, add, end);
+        }
+
+        // One to four "manager[?].Add(sprites);" between from and to, nothing else (a "return", or a
+        // jump over the hiding block, last is fine: that block can come after the adds).
+        private static bool OnlyAdds(IList<Il> code, int from, int to)
+        {
+            if (from < 0 || to <= from || to > code.Count || to - from > 25)
+                return false;
+            int exit = to;
+            if (code[to - 1].Op == OpCodes.Ret)
+                exit = --to;
+            else if (code[to - 1].Op == OpCodes.Br || code[to - 1].Op == OpCodes.Br_S)
+                exit = code[--to].Target;
+            if (to <= from)
+                return false;
+            int calls = 0;
+            for (int i = from; i < to; i++)
+            {
+                Il il = code[i];
+                // Old builds' Add returns a bool, dropped ("pop").
+                if (IsCall(il) && il.Params == 1 && (il.Type == "System.Void" || (i + 1 < to && code[i + 1].Op == OpCodes.Pop)))
+                    calls++;
+                else if (!IsLoad(il) && il.Op != OpCodes.Ldfld && il.Op != OpCodes.Ldsfld && il.Op != OpCodes.Dup && il.Op != OpCodes.Pop &&
+                         !((IsBrTrue(il) || IsBrFalse(il)) && il.Target > i && (il.Target <= to || il.Target == exit)))
+                    return false;
+            }
+            return calls >= 1 && calls <= 4 && (IsCall(code[to - 1]) || (code[to - 1].Op == OpCodes.Pop && IsCall(code[to - 2])));
+        }
+
+        // "if (type != Off && !relax && !autopilot)": the setting read, tested, and read again after.
+        private static bool HudProgressBar(IList<Il> code, int k, int ap, int after)
+        {
+            if (k < 2 || after >= code.Count || !IsCondBranch(code[k - 1]) || code[k - 1].Target != code[k + 1].Target ||
+                (ap >= 0 && code[ap + 1].Target != code[k + 1].Target))
+                return false;
+            Il setting = code[k - 2].Op == OpCodes.Ldsfld ? code[k - 2] : k >= 3 && IsCall(code[k - 2]) ? code[k - 3] : code[k - 2];
+            return setting.Op == OpCodes.Ldsfld && code[after].Op == OpCodes.Ldsfld && code[after].Member == setting.Member;
+        }
+
+        // "if (... || relax[ || autopilot] || scoreBoard != null) return;", or b394a/b420's
+        // "if (... && !relax) { if (beatmap.OnlineScores != null ...".
+        private static bool HudLeaderboard(IList<Il> code, int k, int ap, int after)
+        {
+            // Relax (then Autopilot) on returns: "brtrue ret", or "brfalse" over a "ret" right after.
+            int last = ap >= 0 ? ap : k, next = -1;
+            int ret = IsBrTrue(code[k + 1]) ? code[k + 1].Target : after;
+            if (ret >= 0 && ret < code.Count && code[ret].Op == OpCodes.Ret && (ap < 0 || (IsBrTrue(code[k + 1]) && code[k + 1].Target == ret)))
+            {
+                if (IsBrTrue(code[last + 1]) && code[last + 1].Target == ret)
+                    next = after;
+                else if (IsBrFalse(code[last + 1]) && ret == after && code[last + 1].Target == after + 1)
+                    next = after + 1;
+            }
+            // Then "scoreBoard != null": [ldarg.0][ldfld] or [ldsfld] (not a bool), and brtrue.
+            if (next >= 0 && next + 1 < code.Count && code[next].Op == OpCodes.Ldsfld && code[next].Type != "System.Boolean" && IsBrTrue(code[next + 1]))
+                return true;
+            if (next >= 0 && next + 2 < code.Count && code[next].Op == OpCodes.Ldarg_0 && code[next + 1].Op == OpCodes.Ldfld && code[next + 1].Type != "System.Boolean" && IsBrTrue(code[next + 2]))
+                return true;
+            // b394a and b420: "if (... && !relax) { if (beatmap.OnlineScores != null ...".
+            return ap < 0 && IsBrTrue(code[k + 1]) && after + 1 < code.Count && (code[after].Op == OpCodes.Ldsfld || IsCall(code[after])) &&
+                   code[after + 1].Op == OpCodes.Ldfld && code[after + 1].Name == "OnlineScores";
+        }
+
+        // Taiko's score display: "if (!relax) { int num = score - shown; ..." first in its update.
+        private static bool TaikoScorePopups(IList<Il> code, int k) =>
+            k == 0 && IsBrTrue(code[1]) && code.Count > 5 && IsLoad(code[2]) && code[3].Op == OpCodes.Ldarg_0 &&
+            code[4].Op == OpCodes.Ldfld && code[4].Type == "System.Int32" && code[5].Op == OpCodes.Sub;
+
+        // Taiko's HP bar: "if (relax) return;" then "hp == 200.0" (the full bar flash).
+        private static bool TaikoFullBar(IList<Il> code, int k) =>
+            k == 0 && IsBrFalse(code[1]) && code.Count > 5 && code[2].Op == OpCodes.Ret && code[3].Op == OpCodes.Ldarg_0 &&
+            IsCall(code[4]) && code[4].Type == "System.Double" && code[5].Op == OpCodes.Ldc_R8;
+
+        /// <summary>
         /// The results screen's "keep it as a local score" check: "has(mods, Relax)" and "has(mods,
         /// Autopilot)", the same method called close together. The indices of the two calls.
         /// </summary>
@@ -293,6 +447,75 @@ namespace TitanicHook.Core.Compat
                     return true;
             }
             return false;
+        }
+
+        // ── 10. Chat links ─────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Where the chat looks for a link: "text.IndexOf("http://"[, start])" (b337 to b20121203; an
+        /// https:// link wasn't found). The indices of the IndexOf calls.
+        /// </summary>
+        public static List<int> UrlSearches(IList<Il> code)
+        {
+            var calls = new List<int>();
+            for (int k = 0; k + 1 < code.Count; k++)
+            {
+                if (code[k].Str != "http://")
+                    continue;
+                // The start ("num + 1") is worked out between the string and the call.
+                int j = k + 1;
+                while (j < code.Count && j < k + 6 && (IsLoad(code[j]) || code[j].Int != null || code[j].Op == OpCodes.Add || code[j].Op == OpCodes.Ldfld))
+                    j++;
+                if (j < code.Count && IsCall(code[j]) && code[j].Name == "IndexOf" && code[j].Owner == "System.String" &&
+                    ((code[j].Params == 1 && j == k + 1) || (code[j].Params == 2 && j > k + 1 && SecondParam(code[j]) == "System.Int32")))
+                    calls.Add(j);
+            }
+            return calls;
+        }
+
+        private static string? SecondParam(Il call)
+        {
+            try
+            {
+                return (call.Operand as System.Reflection.MethodBase)?.GetParameters()[1].ParameterType.FullName;
+            }
+            catch (System.Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// The in-game beatmap links' patterns (osu!direct for supporters): "new Regex("http\\://osu...")",
+        /// which don't match https://. The indices of the pattern strings.
+        /// </summary>
+        public static List<int> HttpLinkPatterns(IList<Il> code)
+        {
+            var strings = new List<int>();
+            for (int k = 0; k + 1 < code.Count; k++)
+            {
+                if (code[k].Str is { } text && text.StartsWith("http\\://", System.StringComparison.Ordinal) &&
+                    code[k + 1].Op == OpCodes.Newobj && code[k + 1].Owner == "System.Text.RegularExpressions.Regex")
+                    strings.Add(k);
+            }
+            return strings;
+        }
+
+        /// <summary>
+        /// b20121003 to b20121223 build the beatmap links' patterns from "Regex.Escape("http://osu...")"
+        /// (osu! added ".Replace("http", "http[s]?")" from b20130303). The indices of the Escape calls.
+        /// </summary>
+        public static List<int> EscapedHttpLinks(IList<Il> code)
+        {
+            var calls = new List<int>();
+            for (int k = 0; k + 1 < code.Count; k++)
+            {
+                if (code[k].Str is { } text && text.StartsWith("http://", System.StringComparison.Ordinal) && IsCall(code[k + 1]) &&
+                    code[k + 1].Name == "Escape" && code[k + 1].Owner == "System.Text.RegularExpressions.Regex" &&
+                    !(k + 2 < code.Count && code[k + 2].Str == "http"))
+                    calls.Add(k + 1);
+            }
+            return calls;
         }
 
         // ── 8. Song switch ─────────────────────────────────────────────────────────────────────
