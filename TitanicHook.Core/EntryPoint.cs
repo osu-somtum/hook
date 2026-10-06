@@ -108,6 +108,22 @@ public static class EntryPoint
             ApplyIfFound(new LeaderboardModsPatch()); // b337 to b20130319
         }
         ApplyIfFound(new ChatLinksPatch()); // b337 to b20121223
+        if (Config.EnableDiscord)
+        {
+            try
+            {
+                var discord = new DiscordPresencePatch();
+                if (!DiscordPresencePatch.BuildHasOwnPresence)
+                {
+                    ApplyIfFound(discord); // the status packet, b337 to 2015
+                    DiscordPresencePatch.Start();
+                }
+            }
+            catch (Exception e)
+            {
+                Logging.Info($"Discord presence: not started ({e.Message})"); // never worth stopping the game for
+            }
+        }
         ShapeCode.Forget();
         if (Config.DisableUpdater)
         {

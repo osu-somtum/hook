@@ -78,6 +78,9 @@ public class Configuration
 
     /// <summary>osu!somtum: Relax/Autopilot show misses and the HUD, sound combo breaks, keep local scores and are submitted (RelaxJudgementPatch, RelaxHudPatch, RelaxLocalScorePatch, RelaxSubmitPatch).</summary>
     public bool RelaxFixes { get; set; } = true;
+
+    /// <summary>osu!somtum: Discord Rich Presence (DiscordPresencePatch).</summary>
+    public bool EnableDiscord { get; set; } = true;
     
     /// <summary>
     /// Whether it's the first config creation.
@@ -183,6 +186,9 @@ public class Configuration
                 case "RelaxFixes":
                     RelaxFixes = bool.Parse(splitLine[1]);
                     break;
+                case "EnableDiscord":
+                    EnableDiscord = bool.Parse(splitLine[1]);
+                    break;
             }
         }
     }
@@ -216,6 +222,7 @@ public class Configuration
         sw.WriteLine($"DisableUpdater={DisableUpdater}");
         sw.WriteLine($"FixScreenMode={FixScreenMode}");
         sw.WriteLine($"RelaxFixes={RelaxFixes}");
+        sw.WriteLine($"EnableDiscord={EnableDiscord}");
     }
 
     /// <summary>

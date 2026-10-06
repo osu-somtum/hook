@@ -38,6 +38,10 @@ under the same license (GPLv3 or later).
   (b639 to b1844 opened them as `http://https://...`); in-game beatmap links match `https://` too.
 - **No updater.** The 2014-15 updater's check answers "no update": the server's list would replace
   the build with today's osu!, and failing checks make the game repair itself.
+- **Discord Rich Presence.** Discord shows what you're doing in osu!somtum (playing, watching,
+  editing, multiplayer...), the beatmap, its mods and mode, with a link to your profile and to the
+  beatmap. It's read from the status the game sends bancho. Builds patched by the somtum patcher have
+  their own presence, so the hook leaves it to them.
 - **No self-update.** Releases are on osu-somtum/hook.
 
 Each of these is found in the client by what its code does (strings, called methods, the shape of
@@ -68,7 +72,7 @@ is created on the first run.
 
 `ServerName` is the server's domain (`blueskychan.dev`). `FixBeatmaps`, `DisableUpdater`,
 `FixScreenMode` and `RelaxFixes` turn the beatmap, updater, screen mode and Relax/Autopilot patches
-off. The rest you most likely don't need to touch.
+off, and `EnableDiscord` the Discord presence. The rest you most likely don't need to touch.
 
 > [!TIP]
 > The IP address for bancho in clients that use TCP (b20130815 and older) is the first DNS A record
